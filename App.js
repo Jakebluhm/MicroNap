@@ -15,12 +15,14 @@ import {
   StyleSheet,
   Text,
   useColorScheme,
+  Pressable,
   View, 
   TouchableOpacity,
+  Image,
   Platform,
   Easing,
-  Animated,
-  Pressable,
+  Animated, 
+  AppState,
 } from 'react-native';
 
 import Touchable from './Touchable';
@@ -38,8 +40,8 @@ import {
   WheelPicker,
   TimePicker,
   DatePicker
-} from "react-native-wheel-picker-android";
-
+} from "react-native-wheel-picker-android"; 
+// import Picker from "react-native-animated-wheel-picker";
 import Sound from 'react-native-sound';
  
  
@@ -50,9 +52,32 @@ const App: () => Node = () => {
   const [secondsSelected, setSecondsSelected] = useState(0);
   const [minsSelected, setMinsSelected] = useState(0);
 
+
+  const [timerCount, setTimer] = useState(0)   
+  const [timerState, setTimerState] = useState(0)
+
+  const timerProgress = useRef(new Animated.Value(0))
+
   
   const [sleepLottieProgress, setSleepLottieProgress] = useState(true);
  
+  const animationProgress = useRef(new Animated.Value(0))
+  const [animValue, setAnimValue] = useState(0)
+
+
+  const fadeAnimationProgress = useRef(new Animated.Value(1.0))
+  const [fadeAnimValue, setFadeAnimValue] = useState(1.0)
+
+
+  const stopButtonOpacityProgress = useRef(new Animated.Value(0.0))
+  const [stopButtonOpacity, setStopButtonOpacity] = useState(0.0)
+
+
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackInstance, setPlaybackInstance] = useState(null);
+
+  const [dimensions, setDimensions] = useState({ width: 300, height: 100, hitslop:0 });
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
@@ -62,24 +87,205 @@ const App: () => Node = () => {
   const minutesData = [...Array(15).keys()].map(String)
 
 
+
+  //Background and foreground notifications
+  const appState = useRef(AppState.currentState);
+  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('---------App has come to the foreground! - resuming animations');
+        this.SleepTextAnimation.play();
+        this.PickerIdleAnimation.play()
+      }
+
+      appState.current = nextAppState;
+      setAppStateVisible(appState.current);
+      console.log('AppState', appState.current);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+
+
+
+
+
+
   let picker;
   if(Platform.OS == 'android'){
-    picker = <View></View>
+    picker = <View style={{flex:1, flexDirection:"row", justifyContent:"center", alignItems:'center',  paddingRight:40, paddingLeft:40,  borderColor:"#ff0000", borderWidth:2}}> 
+    <Lottie  
+              renderMode='HARDWARE'
+      style={{height:160, width:380, position:'absolute',  alignSelf:'center' }} 
+      source={require('./Assets/PickerBackgroundShadow.json')}
+      autoPlay={true}
+      loop
+      >    
+    </Lottie>
+
+
+    <View style={{height:140, width:340, position:'absolute',  alignSelf:'center',}}>
+      { timerState != 2 ?
+      <Lottie  
+      renderMode='HARDWARE'
+          style={{height:140, width:340, position:'absolute',  alignSelf:'center' }} 
+          source={require('./Assets/PickerBackground.json')}
+          autoPlay={true}
+          loop
+        >    
+      </Lottie>
+
+      
+      :
+      <Lottie  
+      renderMode='HARDWARE'
+          style={{height:140, width:340, position:'absolute',  alignSelf:'center',  }} 
+          source={require('./Assets/PickerBackgroundCountdown.json')}
+          progress={timerProgress.current} 
+      >   
+      </Lottie>
+      }
+    </View>
+
+
+    <View style={{flex:1, justifyContent:'center', alignItems:'flex-end', paddingRight:10,  }}>
+      <WheelPicker
+        style={{width: 140, height: 120,  marginBottom:5}}
+        selectedItemTextColor='#3B4E59'
+        indicatorColor='#3B4E59'
+        selectedItemTextSize={19}
+        itemTextColor='#3B4E59' 
+        indicatorWidth={3}
+        initPosition={0}
+        selectedItem={minsSelected}
+        data={minutesData}
+        onItemSelected={
+
+          (res) => {setMinsSelected(res)
+                    console.log('res')
+                    console.log(res)
+                    console.log(typeof(res))}}
+      />
+    </View> 
+       
+    <View style={{flex:1,  justifyContent:'center', alignItems:'flex-start', paddingLeft:10,   }}>
+      <WheelPicker
+          style={{ width: 140, height: 120,  marginBottom:5}}
+          selectedItemTextColor='#3B4E59'
+          indicatorColor='#3B4E59'
+          selectedItemTextSize={19}
+          itemTextColor='#3B4E59' 
+          indicatorWidth={3}
+          initPosition={0}
+          selectedItem={secondsSelected}
+          data={secondsData}
+          onItemSelected={(res) => setSecondsSelected(res)}
+      /> 
+    </View>  
+  </View> 
+
   }
   else{
-    picker = 
+    picker = <View style={{flex:1, flexDirection:"row", justifyContent:"center", alignItems:'center',   paddingRight:40, paddingLeft:40,      }}> 
+    {/* <Lottie  
+      style={{height:160, width:380, position:'absolute',  alignSelf:'center' }} 
+      source={require('./Assets/PickerBackgroundShadow.json')}
+      autoPlay={true}
+      loop
+      >    
+    </Lottie> */}
+    <Image
+        style={{width:360, height: 225,  position:'absolute',  alignSelf:'center', marginTop:10}}
+        source={require('./Assets/PickerBackgroundiOS.png')}
+    />
+      
+ 
+
+    <View style={{height:225, width:360, position:'absolute', alignSelf:'center', }}>
+      { (timerState != 2) ?
+ 
+      <Lottie  
+          ref={animation => {
+            this.PickerIdleAnimation = animation;
+          }}
+          style={{height:225, width:360, position:'absolute', alignSelf:'center', }} 
+          source={require('./Assets/PickerIdleiOS.json')}
+          autoPlay={true}
+          loop
+        >    
+      </Lottie>
+      :
+      <Lottie  
+      renderMode='HARDWARE'
+      style={{height:225, width:360, position:'absolute', alignSelf:'center', }} 
+      source={require('./Assets/PickerCountdown.json')}
+      progress={timerProgress.current} 
+
+      // autoPlay={true}
+      // loop
+      >   
+      </Lottie>
+      
+
+      }
+    </View>
+
+
+    <View style={{flex:1, justifyContent:'center', alignItems:'flex-end',   }}>
+
     <Picker
-      selectedValue={selectedLanguage}
-      onValueChange={(itemValue, itemIndex) =>
-        setSelectedLanguage(itemValue)
+      style={{ width: 120, height: 0,   marginBottom:218, alignSelf:'center', marginLeft:10   }}
+      selectedValue={minsSelected}
+      itemStyle={{ color: '#3b4e59' , fontWeight:'500' }}
+      onValueChange={(itemValue, itemIndex) => {
+        console.log('mins selected')
+        console.log(typeof(itemValue))
+        console.log(itemValue)
+        setMinsSelected(itemValue)
+      }
       }>
-      <Picker.Item label="Java" value="java" />
-      <Picker.Item label="JavaScript" value="js" />
+      {minutesData.map((item) => (
+        <Picker.Item label={item}  value={item} key={item} />
+      ))}
     </Picker>
+    </View> 
+       
+    <View style={{flex:1,  justifyContent:'center', alignItems:'flex-start',      }}> 
+    <Picker  
+      style={{ width: 120, height: 0, marginBottom:218, alignSelf:'center', marginRight:25,  }}
+      selectedValue={secondsSelected}
+      itemStyle={{ color: '#3b4e59' , fontWeight:'500' }}
+      onValueChange={(itemValue, itemIndex) =>{
+        console.log('mins selected')
+        console.log(typeof(itemValue))
+        console.log(itemValue)
+        setSecondsSelected(itemValue)
+      }
+      }>
+      {secondsData.map((item) => (
+        <Picker.Item label={item} value={item} key={item} />
+      ))}
+    </Picker>
+    </View>  
+  </View> 
+
+
+
+
+
+
+    
+
   }
 
-  const [timerCount, setTimer] = useState(0)   
-  const [timerState, setTimerState] = useState(0)
 
   const alarm = useCallback(() => {
     togglePlayback()
@@ -87,35 +293,19 @@ const App: () => Node = () => {
 });
 
 
-const animationProgress = useRef(new Animated.Value(0))
-const [animValue, setAnimValue] = useState(0)
 
-
-const timerProgress = useRef(new Animated.Value(0))
-
-
-const fadeAnimationProgress = useRef(new Animated.Value(1.0))
-const [fadeAnimValue, setFadeAnimValue] = useState(1.0)
-
-
-const stopButtonOpacityProgress = useRef(new Animated.Value(0.0))
-const [stopButtonOpacity, setStopButtonOpacity] = useState(0.0)
-
-
-
-const [isPlaying, setIsPlaying] = useState(false);
-const [playbackInstance, setPlaybackInstance] = useState(null);
 
   //Audio Use Effect
   useEffect(() => {
+    console.log("------------- INSIDE USEEFFECT() AUDIO-----------------")
     Sound.setCategory('Playback');
-
+ 
     const source = {
       uri: './Assets/Alarm.mp3' 
     };
 
     const initializePlaybackInstance = async () => {
-      const instance = new Sound('alarm.mp3', Sound.MAIN_BUNDLE, error => {
+      const instance = new Sound('Alarm.mp3', Sound.MAIN_BUNDLE, error => {
         console.log('what the fuck')
         if (error) {
           console.log("Creating instance error")
@@ -130,6 +320,7 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
 
         console.log('isPlaying')
         console.log(isPlaying)
+        try{
         if(isPlaying){
           playbackInstance.setVolume(1)
           playbackInstance.play(success => {
@@ -142,12 +333,19 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
           });
         }
         else{ 
-          playbackInstance.stop(() => {
-            // Note: If you want to play a sound after stopping and rewinding it,
-            // it is important to call play() in a callback.
-            //whoosh.play();
-          });
+          if(playbackInstance != null){
+            playbackInstance.stop(() => {
+              // Note: If you want to play a sound after stopping and rewinding it,
+              // it is important to call play() in a callback.
+              //whoosh.play();
+            });
+          }
+          else{
+            console.log("PlaybackInstance is null")
+          }
         }
+      }
+      catch(e) { console.error(e); }
 
 
       });
@@ -201,6 +399,7 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
 
 
    useEffect(() => {
+     console.log("------------- INSIDE USEEFFECT()-----------------")
 
     animationProgress.current.addListener((progress)=>{ 
       setAnimValue(progress.value)
@@ -250,6 +449,14 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
 
 
   const expandOnHold = () => {
+
+    // Expand touchable area of sleep button
+    setDimensions({
+      width: 400,
+      height: 300,
+      hitslop:100
+    });
+
     Animated.timing(animationProgress.current, {
       toValue: 1.0,
       duration: 3000,
@@ -286,6 +493,11 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
   // }
 
   const shrinkOnRelease = () => {
+    setDimensions({
+      width: 300,
+      height: 100,
+      hitslop: 0
+    });
     Animated.timing(animationProgress.current, {
       toValue: 0,
       duration: 1000 * animValue,
@@ -296,6 +508,7 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
 
 
   timerAnimation = () => {
+    console.log("----------------------timerAnimation----------------------")
     Animated.timing(timerProgress.current, {
       toValue: 1.0,
       duration: 1000 * (parseInt(secondsSelected) + (parseInt(minsSelected) * 60)),
@@ -347,105 +560,60 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
   };
 
 
-  var SleepAnimated =           <Lottie  
-  style={[{height:79.5, width:252, marginTop:1, alignSelf:'center',  }, { opacity:fadeAnimValue}]}
-  // progress={sleepLottieProgress}
-  source={require('./Assets/Sleep.json')}
-  autoPlay={sleepLottieProgress}
-  loop
-> 
-</Lottie>
+//   var SleepAnimated =           <Lottie  
+//   renderMode='HARDWARE'
+//   style={[{height:79.5, width:252, marginTop:1, alignSelf:'center', position:'absolute', borderWidth:1, borderColor:"#ff0000"  }, { opacity:fadeAnimValue}]}
+//   // progress={sleepLottieProgress}
+//   source={require('./Assets/Sleep.json')} 
+//   autoPlay={sleepLottieProgress}
+//   loop
+// > 
+// </Lottie>
  
   return ( 
-      <View style={{flex:1,  backgroundColor:'#00004e', }}>
+      <View style={{flex:1,  backgroundColor:'#e3d3e4', }}>
 
 
 
-        <Lottie 
+        {/* <Lottie 
+              renderMode='HARDWARE'
           style={{ resizeMode:"cover", position:'absolute' }}
-          source={require('./Assets/BackGround.json')}
+          source={require('./Assets/BackGroundiOS.json')}
           autoPlay
-          loop>
-        </Lottie>
+          loop
+          >
+        </Lottie> */}
+
+        <Image
+        style={{resizeMode:"contain", position:'absolute'}}
+        source={require('./Assets/BackgroundStilliOS.png')}
+    />
 
 
 
-        <View style={{flex:1, flexDirection:"row", justifyContent:"center", alignItems:'center',  paddingRight:40, paddingLeft:40,  }}>
-
-        <Lottie  
-              style={{height:160, width:380, position:'absolute',  alignSelf:'center' }} 
-              source={require('./Assets/PickerBackgroundShadow.json')}
-              autoPlay={true}
-              loop
-            >    
-          </Lottie>
-
-        <View style={{height:140, width:340, position:'absolute',  alignSelf:'center',}}>
-          { timerState != 2 ?
-          <Lottie  
-              style={{height:140, width:340, position:'absolute',  alignSelf:'center' }} 
-              source={require('./Assets/PickerBackground.json')}
-              autoPlay={true}
-              loop
-            >    
-          </Lottie>
-          :
-          <Lottie  
-              style={{height:140, width:340, position:'absolute',  alignSelf:'center',  }} 
-              source={require('./Assets/PickerBackgroundCountdown.json')}
-              progress={timerProgress.current} 
-          >   
-          </Lottie>
-          }
-        </View>
 
 
-            <View style={{flex:1, justifyContent:'center', alignItems:'flex-end', paddingRight:10,  }}>
-              <WheelPicker
-                style={{width: 140, height: 120,  marginBottom:5}}
-                selectedItemTextColor='#3B4E59'
-                indicatorColor='#3B4E59'
-                selectedItemTextSize={19}
-                itemTextColor='#3B4E59' 
-                indicatorWidth={3}
-                initPosition={0}
-                selectedItem={minsSelected}
-                data={minutesData}
-                onItemSelected={
 
-                  (res) => {setMinsSelected(res)
-                            console.log('res')
-                            console.log(res)
-                            console.log(typeof(res))}}
-              />
-            </View> 
-             
-            <View style={{flex:1,  justifyContent:'center', alignItems:'flex-start', paddingLeft:10,   }}>
-            <WheelPicker
-                  style={{ width: 140, height: 120,  marginBottom:5}}
-                  selectedItemTextColor='#3B4E59'
-                  indicatorColor='#3B4E59'
-                  selectedItemTextSize={19}
-                  itemTextColor='#3B4E59' 
-                  indicatorWidth={3}
-                  initPosition={0}
-                  selectedItem={secondsSelected}
-                  data={secondsData}
-                  onItemSelected={(res) => setSecondsSelected(res)}
-              /> 
-            </View>  
-        </View> 
 
-        {/* <View>
-        <Text style={{color:'#ffffff'}}>Mins: {minsSelected}</Text>
+        {picker}
+
+
+
+
+
+
+
+        
+        <View>
+        {/* <Text style={{color:'#ffffff'}}>Mins: {minsSelected}</Text>
         <Text style={{color:'#ffffff'}}>Seconds: {secondsSelected}</Text>
-        <Text style={{color:'#ffffff'}}>anim: {animValue}</Text>
-        <Text style={{color:'#ffffff'}}>anim: {fadeAnimValue}</Text> 
-        <Text style={{color:'#ffffff'}}>{timerCount}</Text>
-        <Text style={{color:'#ffffff'}}>{timerState}</Text>
-        </View> */}
+        <Text style={{color:'#ffffff'}}>anim: {animValue}</Text> */}
+        {/* <Text style={{color:'#ffffff'}}>anim: {fadeAnimValue}</Text>  */}
+        {/* <Text style={{color:'#ffffff'}}>{timerCount}</Text>
+        <Text style={{color:'#ffffff'}}>{timerState}</Text> */}
+        </View>
         <View style={{ height:50, width:50, alignSelf:'center',  }}>
-          <Pressable style={{flex:1, justifyContent:'center', alignItems:'flex-start', margin:0,   }} 
+          <Pressable style={{flex:1, justifyContent:'center', alignItems:'center', margin:0,   }} 
             
            activeOpacity={1.0}
             onPress={()=>
@@ -460,6 +628,7 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
  
             >
             <Lottie 
+              renderMode='HARDWARE'
               ref={animation => {
                 this.StopButtonAnimation = animation;
               }}
@@ -473,11 +642,30 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
         </View>
 
 
-        <View style={{flex:1, /*borderColor:'#0000ff', borderWidth:2*/}}>
-          <Touchable style={{flex:1, justifyContent:'center', alignItems:'flex-start', margin:0,  }} 
+        <View style={{flex:1, /*borderColor:'#00ff00', borderWidth:2*/ justifyContent:'center', alignItems:'center',/**/}}>
+        <Lottie 
+            style={{/*height:400, width:412, borderColor:'#ffff00', borderWidth:0, alignSelf:'center', borderWidth:1, borderColor:"#ff0000" position:'absolute'*/}}
+            source={require('./Assets/ButtonBaseMod.json')} 
+            progress={animationProgress.current}> 
+          </Lottie> 
+           
+          {/* {SleepAnimated} */}
+          <Lottie  
+            ref={animation => {
+              this.SleepTextAnimation = animation;
+            }}
+            style={[{height:79.5, width:252, marginTop:1, alignSelf:'center', position:'absolute',    }, { opacity:fadeAnimValue}]}
+            // progress={sleepLottieProgress}
+            source={require('./Assets/Sleep.json')} 
+            autoPlay={sleepLottieProgress}
+            loop
+        > 
+        </Lottie>
+          <Pressable style={{ width: dimensions.width, height: dimensions.height,/*width:400, height:300,*//*width:300, height:100,*/ justifyContent:'center', alignItems:'flex-start', margin:0, /*borderColor:'#0000ff', borderWidth:6 ,*/ marginLeft:70,  marginRight:70, marginTop:170, marginBottom:170}} 
             disabled={timerState != 0}
-             as={TouchableOpacity}
-             activeOpacity={1.0}
+             //as={TouchableOpacity}
+             //activeOpacity={1.0}
+             hitSlop={dimensions.hitslop}
              onPress={()=>console.log('onPress')}
              onPressIn={()=>
               {
@@ -519,13 +707,7 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
              }
           } 
              >
-          <Lottie
-            style={{ borderColor:'#ffff00', borderWidth:0, alignSelf:'center'}}
-            source={require('./Assets/ButtonBaseMod.json')} 
-            progress={animationProgress.current}> 
-          </Lottie> 
-           
-          {SleepAnimated}
+
           {/* <Lottie  
             style={[{height:600, width:700, marginTop:6, alignSelf:'center',  borderColor:'#ffffff',}, { opacity:fadeAnimValue}]}
             // progress={sleepLottieProgress}
@@ -535,8 +717,8 @@ const [playbackInstance, setPlaybackInstance] = useState(null);
           > 
           </Lottie> */}
 
-          </Touchable> 
- 
+          </Pressable> 
+
         </View> 
       </View>
  
