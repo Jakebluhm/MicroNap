@@ -66,9 +66,9 @@ const App: () => Node = () => {
   if(Platform.OS == 'android'){
     picker = <View></View>
   }
-  else{
+  else{ 
     picker = 
-    <Picker
+    <Picker 
       selectedValue={selectedLanguage}
       onValueChange={(itemValue, itemIndex) =>
         setSelectedLanguage(itemValue)
